@@ -1,4 +1,4 @@
-name: Build, scan and push image
+name: Build and deploy frontend
 
 on:
   push:
@@ -17,13 +17,14 @@ concurrency:
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'ap-southeast-2' }}
-  ECR_REPOSITORY: tikto/frontend
 
 jobs:
-  publish:
-    name: Quality gate and publish immutable image
+  deploy:
+    name: Quality gate and deploy to S3
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    environment:
+      name: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
 
     steps:
       - name: Check out source
@@ -59,21 +60,11 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
 
-      - name: Create immutable image tag
-        id: image
-        shell: bash
-        run: |
-          tag="${GITHUB_REF_NAME}-${GITHUB_SHA::12}-${GITHUB_RUN_ID}"
-          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
-          echo "local=${ECR_REPOSITORY}:${tag}" >> "${GITHUB_OUTPUT}"
-
-      - name: Build container image
-        run: docker build --tag "${{ steps.image.outputs.local }}" .
-
-      - name: Scan image with Trivy
+      - name: Scan source with Trivy
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ${{ steps.image.outputs.local }}
+          scan-type: fs
+          scan-ref: .
           format: table
           severity: HIGH,CRITICAL
           ignore-unfixed: true
@@ -82,26 +73,38 @@ jobs:
       - name: Configure AWS credentials with GitHub OIDC
         uses: aws-actions/configure-aws-credentials@v6.3.0
         with:
-          role-to-assume: ${{ vars.AWS_BUILD_ROLE_ARN }}
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           role-session-name: frontend-${{ github.run_id }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Log in to Amazon ECR
-        id: ecr
-        uses: aws-actions/amazon-ecr-login@v2.1.7
-
-      - name: Push immutable image
-        id: push
+      - name: Upload hashed assets to S3
         shell: bash
-        env:
-          REGISTRY: ${{ steps.ecr.outputs.registry }}
-          IMAGE_TAG: ${{ steps.image.outputs.tag }}
-          LOCAL_IMAGE: ${{ steps.image.outputs.local }}
         run: |
-          remote_image="${REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
-          docker tag "${LOCAL_IMAGE}" "${remote_image}"
-          docker push "${remote_image}"
-          echo "image=${remote_image}" >> "${GITHUB_OUTPUT}"
+          aws s3 sync dist/ "s3://${{ vars.FRONTEND_BUCKET_NAME }}" \
+            --delete \
+            --exclude "index.html" \
+            --cache-control "public,max-age=31536000,immutable"
+
+      - name: Upload application entry point to S3
+        shell: bash
+        run: |
+          aws s3 cp dist/index.html \
+            "s3://${{ vars.FRONTEND_BUCKET_NAME }}/index.html" \
+            --content-type "text/html; charset=utf-8" \
+            --cache-control "no-cache,no-store,must-revalidate"
+
+      - name: Invalidate CloudFront cache
+        id: invalidation
+        shell: bash
+        run: |
+          invalidation_id=$(aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text)
+          echo "id=${invalidation_id}" >> "${GITHUB_OUTPUT}"
 
       - name: Publish summary
-        run: echo "Published \`${{ steps.push.outputs.image }}\`" >> "${GITHUB_STEP_SUMMARY}"
+        run: |
+          echo "Deployed to \`s3://${{ vars.FRONTEND_BUCKET_NAME }}\`" >> "${GITHUB_STEP_SUMMARY}"
+          echo "CloudFront invalidation: \`${{ steps.invalidation.outputs.id }}\`" >> "${GITHUB_STEP_SUMMARY}"

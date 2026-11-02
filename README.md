@@ -25,11 +25,13 @@ Do not place secrets or AWS credentials in any `VITE_*` variable; those values a
 
 ## CI/CD
 
-Pull requests targeting `dev` or `main` run formatting, lint, unit tests, coverage and SonarQube analysis. Pushes to those branches repeat the quality gate, build the container, block HIGH/CRITICAL fixable vulnerabilities with Trivy, then push an immutable image to Amazon ECR.
+Pull requests targeting `dev` or `main` run formatting, lint, unit tests, coverage and SonarQube analysis. Pushes to those branches repeat the quality gate, scan the source with Trivy, upload `dist/` to S3, then invalidate CloudFront. The `dev` branch deploys through the `dev` GitHub Environment and `main` deploys through `prod`.
 
 Configure these GitHub organization or repository settings:
 
-- Variable `AWS_BUILD_ROLE_ARN`: Terraform output `github_build_role_arn` from the shared stack.
+- Environment variable `AWS_DEPLOY_ROLE_ARN`: Terraform output `github_deploy_role_arn` for dev or `github_frontend_deploy_role_arn` for prod.
 - Variable `AWS_REGION`: `ap-southeast-2`.
+- Environment variable `FRONTEND_BUCKET_NAME`: Terraform output with the same name.
+- Environment variable `CLOUDFRONT_DISTRIBUTION_ID`: Terraform output with the same name.
 - Variable `SONAR_HOST_URL`: URL of the SonarQube server.
 - Secret `SONAR_TOKEN`: project analysis token.
