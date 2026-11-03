@@ -4,52 +4,60 @@ on:
   pull_request:
     branches:
       - dev
-      - main
   workflow_dispatch:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  quality:
-    name: Format, lint, test, build and SonarQube
+  changes:
+    name: Detect source changes
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-
+    outputs:
+      source: ${{ steps.filter.outputs.source }}
     steps:
-      - name: Check out source
-        uses: actions/checkout@v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7.1.0
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Check formatting
-        run: npm run format:check
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Run unit tests with coverage
-        run: npm test
-
-      - name: Build production assets
-        run: npm run build
-
-      - name: SonarQube analysis
-        uses: SonarSource/sonarqube-scan-action@v8.4.0
+      - name: Detect source changes
+        id: filter
+        shell: bash
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "source=true" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          mapfile -t files < <(
+            gh api --paginate \
+              "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" \
+              --jq '.[].filename'
+          )
+
+          source=false
+          for file in "${files[@]}"; do
+            case "${file}" in
+              src/*|test/*|public/*|index.html|package.json|package-lock.json|eslint.config.*|vite.config.*|Dockerfile|nginx.conf|.env.example|.github/workflows/ci.yml)
+                source=true
+                break
+                ;;
+            esac
+          done
+
+          echo "source=${source}" >> "${GITHUB_OUTPUT}"
+          echo "Source changes: ${source}" >> "${GITHUB_STEP_SUMMARY}"
+
+  quality:
+    name: Format, lint, test and build
+    needs: changes
+    if: needs.changes.outputs.source == 'true'
+    uses: tikto-calender/reusable-workflow/.github/workflows/node-ci.yml@main
+    with:
+      build-command: npm run build
