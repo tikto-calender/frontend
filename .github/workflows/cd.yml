@@ -1,17 +1,28 @@
-name: Build and deploy frontend
+name: Deploy development
 
 on:
   push:
     branches:
       - dev
-      - main
-  workflow_dispatch:
+    paths:
+      - src/**
+      - test/**
+      - public/**
+      - index.html
+      - package.json
+      - package-lock.json
+      - eslint.config.*
+      - vite.config.*
+      - Dockerfile
+      - nginx.conf
+      - .env.example
+      - .github/workflows/cd.yml
 
 permissions:
   contents: read
 
 concurrency:
-  group: cd-${{ github.workflow }}-${{ github.ref }}
+  group: deploy-dev
   cancel-in-progress: false
 
 jobs:
@@ -27,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     environment:
-      name: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+      name: dev
     permissions:
       contents: read
       id-token: write
