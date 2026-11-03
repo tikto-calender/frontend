@@ -20,15 +20,3 @@ jobs:
     uses: tikto-calender/reusable-workflow/.github/workflows/node-ci.yml@main
     with:
       build-command: npm run build
-      coverage-artifact-name: frontend-coverage
-
-  sonar:
-    name: SonarQube
-    needs: quality
-    uses: tikto-calender/reusable-workflow/.github/workflows/sonarqube.yml@main
-    with:
-      sonar-host-url: ${{ vars.SONAR_HOST_URL }}
-      coverage-artifact-name: frontend-coverage
-      coverage-download-path: coverage
-    secrets:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

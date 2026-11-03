@@ -25,7 +25,7 @@ Do not place secrets or AWS credentials in any `VITE_*` variable; those values a
 
 ## CI/CD
 
-Pull requests targeting `dev` or `main` run formatting, lint, unit tests, coverage and SonarQube analysis. Pushes to those branches repeat the quality gate, scan the source with Trivy, upload `dist/` to S3, then invalidate CloudFront. The `dev` branch deploys through the `dev` GitHub Environment and `main` deploys through `prod`.
+Pull requests targeting `dev` or `main` run formatting, lint, unit tests and coverage. Pushes to those branches repeat the quality gate, scan the source with Trivy, upload `dist/` to S3, then invalidate CloudFront. The `dev` branch deploys through the `dev` GitHub Environment and `main` deploys through `prod`. SonarQube analysis is handled automatically outside the GitHub Actions workflow.
 
 Configure these GitHub organization or repository settings:
 
@@ -33,5 +33,3 @@ Configure these GitHub organization or repository settings:
 - Variable `AWS_REGION`: `ap-southeast-2`.
 - Environment variable `FRONTEND_BUCKET_NAME`: Terraform output with the same name.
 - Environment variable `CLOUDFRONT_DISTRIBUTION_ID`: Terraform output with the same name.
-- Variable `SONAR_HOST_URL`: URL of the SonarQube server.
-- Secret `SONAR_TOKEN`: project analysis token.
