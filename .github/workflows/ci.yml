@@ -58,6 +58,6 @@ jobs:
     name: Format, lint, test and build
     needs: changes
     if: needs.changes.outputs.source == 'true'
-    uses: tikto-calender/reusable-workflow/.github/workflows/node-ci.yml@main
+    uses: tikto-calender/reusable-workflow/.github/workflows/node-ci.yml@bdf76770e0346eee74be21ef82919ed7aeefdb1a
     with:
       build-command: npm run build
