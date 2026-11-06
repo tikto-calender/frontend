@@ -1,6 +1,7 @@
 import "./styles.css";
 import packageMetadata from "../package.json";
 import { dashboardWindow, isInsideWindow } from "./dashboard-window.js";
+import { testNotificationFeedback } from "./notification-feedback.js";
 
 const API_ORIGIN = (import.meta.env.VITE_API_ORIGIN ?? "").replace(/\/$/, "");
 const APP_VERSION = packageMetadata.version;
@@ -347,11 +348,11 @@ document.addEventListener("click", async (event) => {
     }
     if (target.id === "test-notification") {
       target.disabled = true;
-      await api("/api/notifications/test", {
+      const notification = await api("/api/notifications/test", {
         method: "POST",
         body: JSON.stringify({}),
       });
-      showToast("Đã gửi notification test.");
+      showToast(testNotificationFeedback(notification));
       await loadServiceStatus();
       target.disabled = false;
     }

@@ -1,6 +1,13 @@
 node_modules/
 dist/
 coverage/
+.vite/
+.scannerwork/
+.eslintcache
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
 .env*
 !.env.example
-
