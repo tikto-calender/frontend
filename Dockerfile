@@ -10,7 +10,9 @@ ARG VITE_API_ORIGIN=""
 ENV VITE_API_ORIGIN=${VITE_API_ORIGIN}
 RUN npm run build
 
-FROM nginx:1.29-alpine
+FROM nginx:1.30-alpine-slim
+
+RUN apk upgrade --no-cache
 
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY --from=build /app/dist /usr/share/nginx/html
