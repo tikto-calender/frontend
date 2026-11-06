@@ -57,7 +57,6 @@ async function loadData() {
 
 function renderRuntime(runtime) {
   state.backendVersion = runtime.version || "unknown";
-  document.querySelector("#frontend-version").textContent = `v${APP_VERSION}`;
   renderServiceVersions();
 }
 
@@ -424,5 +423,6 @@ updateClock();
 window.setInterval(updateClock, 30_000);
 bindForm("task");
 bindForm("event");
+document.querySelector("#frontend-version").textContent = `v${APP_VERSION}`;
 loadData().catch((error) => showToast(error.message));
 loadServiceStatus().catch(() => {});
