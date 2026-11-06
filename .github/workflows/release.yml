@@ -49,7 +49,7 @@ jobs:
   quality:
     name: Verify release source
     needs: validate
-    uses: tikto-calender/reusable-workflow/.github/workflows/node-ci.yml@main
+    uses: tikto-calender/reusable-workflow/.github/workflows/ci-node.yml@main
     with:
       build-command: npm run build
 
