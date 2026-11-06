@@ -6,15 +6,15 @@ on:
       - dev
       - main
     paths:
-      - '.github/workflows/**'
-      - 'src/**'
-      - 'test/**'
-      - 'public/**'
+      - ".github/workflows/**"
+      - "src/**"
+      - "test/**"
+      - "public/**"
       - index.html
       - package.json
       - package-lock.json
-      - 'eslint.config.*'
-      - 'vite.config.*'
+      - "eslint.config.*"
+      - "vite.config.*"
       - Dockerfile
       - nginx.conf
       - .dockerignore
