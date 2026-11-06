@@ -1,9 +1,10 @@
-name: Promote to production
+name: Release production
+
 on:
   workflow_dispatch:
     inputs:
-      digest:
-        description: "Digest confirmed running and Healthy in Dev (sha256:...)"
+      version:
+        description: Semantic version tag, for example v1.2.3
         required: true
         type: string
 
@@ -11,15 +12,136 @@ permissions:
   contents: read
 
 concurrency:
-  group: gitops-prod
+  group: release-production
   cancel-in-progress: false
 
 jobs:
-  promote:
-    uses: tikto-calender/reusable-workflow/.github/workflows/gitops-promote.yml@bdf76770e0346eee74be21ef82919ed7aeefdb1a
+  validate:
+    name: Validate release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require dev and a new semantic version
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_REF}" != "refs/heads/dev" ]]; then
+            echo "::error::Production releases must be started from the dev branch."
+            exit 1
+          fi
+          if [[ ! "${VERSION}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::Version must use the vMAJOR.MINOR.PATCH format."
+            exit 1
+          fi
+          if gh release view "${VERSION}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "::error::Release ${VERSION} already exists."
+            exit 1
+          fi
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${VERSION}" >/dev/null 2>&1; then
+            echo "::error::Tag ${VERSION} already exists."
+            exit 1
+          fi
+
+  quality:
+    name: Verify release source
+    needs: validate
+    uses: tikto-calender/reusable-workflow/.github/workflows/ci-node.yml@main
     with:
-      component: frontend
-      gitops-repository: ${{ vars.GITOPS_REPOSITORY || 'tikto-calender/manifest' }}
-      digest: ${{ inputs.digest }}
-    secrets:
-      GITOPS_TOKEN: ${{ secrets.GITOPS_TOKEN }}
+      build-command: npm run build
+
+  deploy:
+    name: Deploy version to production
+    needs:
+      - validate
+      - quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment:
+      name: prod
+    permissions:
+      contents: write
+      id-token: write
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'ap-southeast-2' }}
+      VERSION: ${{ inputs.version }}
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build production assets
+        run: npm run build
+
+      - name: Scan source with Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Configure AWS credentials with GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: frontend-prod-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Upload hashed assets to S3
+        shell: bash
+        run: |
+          aws s3 sync dist/ "s3://${{ vars.FRONTEND_BUCKET_NAME }}" \
+            --delete \
+            --exclude "index.html" \
+            --cache-control "public,max-age=31536000,immutable"
+
+      - name: Upload application entry point to S3
+        shell: bash
+        run: |
+          aws s3 cp dist/index.html \
+            "s3://${{ vars.FRONTEND_BUCKET_NAME }}/index.html" \
+            --content-type "text/html; charset=utf-8" \
+            --cache-control "no-cache,no-store,must-revalidate"
+
+      - name: Invalidate CloudFront cache
+        id: invalidation
+        shell: bash
+        run: |
+          invalidation_id=$(aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text)
+          echo "id=${invalidation_id}" >> "${GITHUB_OUTPUT}"
+
+      - name: Create immutable release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${VERSION}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
+            --title "${VERSION}" \
+            --generate-notes
+
+      - name: Publish summary
+        run: |
+          echo "Released \`${VERSION}\` to production." >> "${GITHUB_STEP_SUMMARY}"
+          echo "CloudFront invalidation: \`${{ steps.invalidation.outputs.id }}\`" >> "${GITHUB_STEP_SUMMARY}"
