@@ -49,6 +49,15 @@ jobs:
           mapfile -t pr < <(
             gh pr view "${pr_number}" \
               --repo "${GITHUB_REPOSITORY}" \
+              --json baseRefName,headRefOid,isCrossRepository,isDraft,state \
+              --jq '.baseRefName, .headRefOid, .isCrossRepository, .isDraft, .state'
+          )
+
+          base_ref="${pr[0]:-}"
+          current_head="${pr[1]:-}"
+          cross_repository="${pr[2]:-true}"
+          draft="${pr[3]:-true}"
+          state="${pr[4]:-UNKNOWN}"
               --json author,baseRefName,headRefOid,isCrossRepository,isDraft,state \
               --jq '.author.login, .baseRefName, .headRefOid, .isCrossRepository, .isDraft, .state'
           )
