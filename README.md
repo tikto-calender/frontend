@@ -1,41 +1,98 @@
 # TikTo Frontend
 
-Static frontend built with Vite and vanilla JavaScript. The production artifact is `dist/`, suitable for a private S3 bucket served through CloudFront.
+Web application for the TikTo Calendar system, built with **Vite** and modern **vanilla JavaScript**. Delivers an interactive calendar interface for managing tasks, events, and viewing system notifications.
 
-## Local development
+---
 
-Run the backend on port `3000`, then:
+## 🚀 Key Features
+
+* 📅 **Calendar & Planner Views**: Interactive scheduling for tasks and calendar events.
+* 📋 **Task Management**: Create, update, toggle completion status, and remove tasks.
+* 🔔 **Telegram Notifications**: View real-time system and notification health directly from the UI.
+* ⚡ **Fast & Lightweight**: Zero frontend framework bloat; powered by Vite for lightning-fast HMR (Hot Module Replacement).
+
+---
+
+## 🛠️ Local Development
+
+### Prerequisites
+* **Node.js** `>= 20`
+* **npm** `>= 10`
+* The **TikTo Backend** running on `http://localhost:3000`
+
+### Getting Started
 
 ```bash
+# 1. Install dependencies
 npm install
+
+# 2. Start the development server
 npm run dev
 ```
 
-Vite serves the UI at `http://localhost:5173` and proxies `/api/*` to `http://localhost:3000`.
+Vite serves the application at **`http://localhost:5173`**.
 
-## Production build
+> [!NOTE]
+> **API Proxying**: In local development, Vite automatically proxies all requests made to `/api/*` directly to the backend at `http://localhost:3000`.
 
+---
+
+## ⚙️ Environment Variables
+
+Create a `.env` file based on `.env.example`:
+
+```bash
+cp .env.example .env
+```
+
+| Variable | Description | Default |
+| :--- | :--- | :--- |
+| `VITE_API_ORIGIN` | Backend origin for direct CORS requests. Leave empty in production so requests remain same-origin via CloudFront/Nginx. | `""` |
+
+> [!WARNING]
+> **Security Warning**: Any variable prefixed with `VITE_` is baked directly into the client-side JavaScript bundle. **Never store API keys, tokens, or AWS credentials in frontend environment files.**
+
+---
+
+## 📜 Available Scripts
+
+| Command | Description |
+| :--- | :--- |
+| `npm run dev` | Starts the local development server with instant hot-reloading |
+| `npm run build` | Compiles and optimizes assets into the `dist/` directory for production |
+| `npm run preview` | Locally serves and previews the production build from `dist/` |
+| `npm test` | Runs frontend unit and integration tests |
+| `npm run lint` | Inspects code style and syntax issues using ESLint |
+
+---
+
+## 📦 Production Build & Deployment
+
+### 1. Static Hosting (AWS S3 + CloudFront)
 ```bash
 npm run build
 ```
+Deploy the compiled `dist/` directory to an Amazon S3 bucket behind AWS CloudFront. 
+Configure CloudFront with two cache behaviors:
+* Default (`/*`): Serves static files from the S3 origin.
+* `/api/*`: Forwards API traffic to the backend origin.
 
-Upload the generated `dist/` directory to S3. With one CloudFront distribution, route the default behavior to S3 and `/api/*` to the backend origin. Leave `VITE_API_ORIGIN` empty so requests remain same-origin.
+### 2. Containerized Hosting (Docker + Nginx)
+The included `Dockerfile` packages the production build into a minimal Alpine Nginx image:
 
-Do not place secrets or AWS credentials in any `VITE_*` variable; those values are embedded in browser assets.
+```bash
+# Build the Docker image
+docker build -t tikto-frontend .
 
-## CI/CD
+# Run the container
+docker run -p 8080:80 tikto-frontend
+```
 
-Open pull requests from working branches to `dev`. CI checks the prospective merge, and every eligible same-repository pull request targeting `dev` is squash-merged after CI succeeds. Documentation-only changes skip the expensive format, lint, test and build job.
+---
 
-Merges to `dev` deploy the development environment. Production has no `main` promotion branch: run the **Release production** workflow from `dev` with a new semantic version such as `v1.2.3`. The workflow verifies the source, deploys through the protected `prod` environment, then creates the immutable GitHub release. SonarQube analysis is handled automatically outside GitHub Actions.
+## 🔄 CI/CD Workflows
 
-Configure these GitHub organization or repository settings:
+Workflows rely on shared actions from `tikto-calender/reusable-workflow`:
 
-- Make `dev` the default branch and protect it with the `CI` checks required and branches required to be up to date.
-- Enable repository auto-merge.
-- Allow GitHub Actions workflow permissions to read and write so the auto-merge job can update pull requests.
-- Environment variable `AWS_DEPLOY_ROLE_ARN`: Terraform output `github_deploy_role_arn` for dev or `github_frontend_deploy_role_arn` for prod.
-- Variable `AWS_REGION`: `ap-southeast-2`.
-- Environment variable `FRONTEND_BUCKET_NAME`: Terraform output with the same name.
-- Environment variable `CLOUDFRONT_DISTRIBUTION_ID`: Terraform output with the same name.
-- Protect the `prod` GitHub Environment with required reviewers.
+* **Pull Requests into `dev`**: Executes automated linting, unit tests, and production build checks. Documentation-only modifications skip pipeline execution to save runner minutes.
+* **Release (`prod`)**: Releases triggered from tagged versions (`vX.Y.Z`) deploy the tested frontend assets to the production CloudFront distribution.

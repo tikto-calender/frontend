@@ -1,36 +1,49 @@
 name: CI
-
 on:
   pull_request:
-    branches:
-      - dev
-      - main
+    branches: [dev]
     paths:
       - ".github/workflows/**"
+      - "Dockerfile"
+      - ".dockerignore"
+      - ".env.example"
+      - "sonar-project.properties"
       - "src/**"
       - "test/**"
       - "public/**"
-      - index.html
-      - package.json
-      - package-lock.json
+      - "index.html"
+      - "package*.json"
       - "eslint.config.*"
       - "vite.config.*"
-      - Dockerfile
-      - nginx.conf
-      - .dockerignore
-      - .env.example
-  workflow_dispatch:
+      - ".prettier*"
+      - "nginx.conf"
+  push:
+    branches: ["feat/**"]
+    paths:
+      - ".github/workflows/**"
+      - "Dockerfile"
+      - ".dockerignore"
+      - ".env.example"
+      - "sonar-project.properties"
+      - "src/**"
+      - "test/**"
+      - "public/**"
+      - "index.html"
+      - "package*.json"
+      - "eslint.config.*"
+      - "vite.config.*"
+      - ".prettier*"
+      - "nginx.conf"
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   quality:
-    name: Format, lint, test and build
     uses: tikto-calender/reusable-workflow/.github/workflows/ci-node.yml@main
     with:
       build-command: npm run build
