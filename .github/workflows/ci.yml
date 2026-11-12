@@ -44,6 +44,6 @@ concurrency:
 
 jobs:
   quality:
-    uses: tikto-calender/reusable-workflow/.github/workflows/ci-node.yml@dbdf77356c14e76c1320f334cd0c18fcff47b659
+    uses: tikto-calender/reusable-workflow/.github/workflows/ci-node.yml@173d8d507715f139f37539080f3ec0fd299e91a1
     with:
       build-command: npm run build
