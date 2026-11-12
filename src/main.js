@@ -1,6 +1,7 @@
 import "./styles.css";
 import packageMetadata from "../package.json";
 import { dashboardWindow, isInsideWindow } from "./dashboard-window.js";
+import { testNotificationFeedback } from "./notification-feedback.js";
 
 const API_ORIGIN = (import.meta.env.VITE_API_ORIGIN ?? "").replace(/\/$/, "");
 const APP_VERSION = packageMetadata.version;
@@ -56,7 +57,6 @@ async function loadData() {
 
 function renderRuntime(runtime) {
   state.backendVersion = runtime.version || "unknown";
-  document.querySelector("#frontend-version").textContent = `v${APP_VERSION}`;
   renderServiceVersions();
 }
 
@@ -347,11 +347,11 @@ document.addEventListener("click", async (event) => {
     }
     if (target.id === "test-notification") {
       target.disabled = true;
-      await api("/api/notifications/test", {
+      const notification = await api("/api/notifications/test", {
         method: "POST",
         body: JSON.stringify({}),
       });
-      showToast("Đã gửi notification test.");
+      showToast(testNotificationFeedback(notification));
       await loadServiceStatus();
       target.disabled = false;
     }
@@ -423,5 +423,6 @@ updateClock();
 window.setInterval(updateClock, 30_000);
 bindForm("task");
 bindForm("event");
+document.querySelector("#frontend-version").textContent = `v${APP_VERSION}`;
 loadData().catch((error) => showToast(error.message));
 loadServiceStatus().catch(() => {});
