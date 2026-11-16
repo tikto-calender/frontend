@@ -10,7 +10,7 @@ ARG VITE_API_ORIGIN=""
 ENV VITE_API_ORIGIN=${VITE_API_ORIGIN}
 RUN npm run build
 
-FROM nginx:1.30-alpine-slim
+FROM nginx:1.31-alpine-slim
 
 RUN apk upgrade --no-cache
 
